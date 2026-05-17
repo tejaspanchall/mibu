@@ -41,6 +41,29 @@ export function TransactionList({
     [transactions]
   );
 
+  if (openId === "new") {
+    return (
+      <div className="rounded-2xl border border-line bg-paper overflow-hidden">
+        <TxForm
+          initial={{
+            kind: "buy",
+            quantity: 0,
+            price: 0,
+            currency: defaultCurrency,
+            date: todayIso()
+          }}
+          assetType={assetType}
+          onCancel={() => setOpenId(null)}
+          onSubmit={async values => {
+            const r = await onAdd(values);
+            if (r.ok) setOpenId(null);
+            return r;
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="text-[11px] tracking-wider text-muted font-medium px-1 mb-2">
@@ -78,33 +101,12 @@ export function TransactionList({
         ))}
       </div>
 
-      {openId === "new" ? (
-        <div className="mt-3 rounded-2xl border border-line bg-paper overflow-hidden">
-          <TxForm
-            initial={{
-              kind: "buy",
-              quantity: 0,
-              price: 0,
-              currency: defaultCurrency,
-              date: todayIso()
-            }}
-            assetType={assetType}
-            onCancel={() => setOpenId(null)}
-            onSubmit={async values => {
-              const r = await onAdd(values);
-              if (r.ok) setOpenId(null);
-              return r;
-            }}
-          />
-        </div>
-      ) : (
-        <button
-          onClick={() => setOpenId("new")}
-          className="mt-3 w-full flex items-center justify-center gap-1.5 bg-chip text-ink rounded-2xl py-3 text-sm font-medium hover:bg-line/70 active:scale-[0.99] transition duration-200"
-        >
-          <PlusIcon /> add transaction
-        </button>
-      )}
+      <button
+        onClick={() => setOpenId("new")}
+        className="mt-3 w-full flex items-center justify-center gap-1.5 bg-chip text-ink rounded-2xl py-3 text-sm font-medium hover:bg-line/70 active:scale-[0.99] transition duration-200"
+      >
+        <PlusIcon /> add transaction
+      </button>
     </div>
   );
 }

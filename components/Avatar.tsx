@@ -4,8 +4,6 @@ import { letterColor } from "@/lib/format";
 import { syncLogoUrlFor } from "@/lib/logo";
 import type { AssetType } from "@/lib/types";
 
-// Cache /api/logo responses across mounts so we don't hit the server every
-// time a row scrolls into view.
 const usLogoCache = new Map<string, string | null>();
 const inflight = new Map<string, Promise<string | null>>();
 
@@ -69,7 +67,6 @@ export function Avatar({
 
   if (url) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={url}
         alt={label}
@@ -79,7 +76,6 @@ export function Avatar({
         style={{ width: size, height: size }}
         loading="lazy"
         onError={() => {
-          // mark as failed so we don't retry, then fall back to letter
           if (type === "us" && ticker) usLogoCache.set(ticker.toUpperCase(), null);
           setUrl(null);
         }}

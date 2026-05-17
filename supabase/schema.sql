@@ -1,7 +1,3 @@
--- Run this in the Supabase SQL editor.
--- Idempotent: safe to re-run after schema changes.
--- No auth: any client with the anon key can read/write. Personal-use only.
-
 create table if not exists public.holdings (
   id uuid primary key default gen_random_uuid(),
   type text not null check (type in ('crypto','us','in')),
@@ -38,7 +34,6 @@ create table if not exists public.transactions (
   created_at timestamptz not null default now()
 );
 
--- Migrations for existing tables created before these columns/checks were added.
 alter table public.holdings
   add column if not exists buy_price_currency text not null default 'USD'
   check (buy_price_currency in ('USD','INR'));
@@ -92,9 +87,6 @@ create policy "anon_all_transactions" on public.transactions
   using (true)
   with check (true);
 
--- Seed an initial buy transaction for any pre-existing holding that has no
--- transactions yet. Idempotent: the `not exists` guard skips holdings that
--- have already been migrated.
 do $$ begin
   insert into public.transactions (holding_id, kind, quantity, price, currency, date)
   select h.id, 'buy', h.quantity, h.buy_price, h.buy_price_currency, h.created_at::date

@@ -1,7 +1,3 @@
-// Server-side only. Do NOT import from client components.
-// NSE official API has no key but requires Akamai bot-manager cookies (bm_sz, _abck)
-// obtained by hitting an HTML page first. Cookies are reused for ~20 min.
-
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
@@ -81,7 +77,6 @@ export async function nseSearch(query: string): Promise<NseSearchHit[]> {
   const seen = new Set<string>();
   for (const it of items) {
     if (!it?.symbol) continue;
-    // Filter out non-equity instruments (indices, mutual funds, options, etc.)
     const url: string = it.url || "";
     const series: string = (it.activeSeries && it.activeSeries[0]) || "";
     if (series && series !== "EQ" && series !== "BE") continue;

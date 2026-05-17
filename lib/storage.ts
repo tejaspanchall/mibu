@@ -23,8 +23,6 @@ const KEY_DISPLAY_CCY = "mibu:displayCcy:v1";
 
 export type Result = { ok: true } | { ok: false; error: string };
 
-// ---------- holdings + transactions ----------
-
 function rowToHolding(r: HoldingRow): Holding {
   return {
     id: r.id,
@@ -153,8 +151,6 @@ export function useHoldings() {
     refresh();
   }, [refresh]);
 
-  // Apply recomputed qty/buyPrice locally so the UI updates without waiting
-  // for a round-trip refresh. We persist the same values to the DB row.
   const persistRecompute = useCallback(
     async (
       holdingId: string,
@@ -166,7 +162,6 @@ export function useHoldings() {
       if (!sb) return { ok: false, error: "Supabase not configured" };
       const totals = recomputeHolding(txs, canonicalCcy, currentFx);
 
-      // No transactions left → delete the holding entirely.
       if (txs.length === 0) {
         const { error } = await sb.from("holdings").delete().eq("id", holdingId);
         if (error) return { ok: false, error: error.message };
@@ -205,7 +200,6 @@ export function useHoldings() {
       );
 
       if (existing) {
-        // Insert a new buy transaction against the existing holding.
         const { data, error } = await sb
           .from("transactions")
           .insert({
@@ -226,9 +220,6 @@ export function useHoldings() {
         return persistRecompute(existing.id, nextTxs, existing.buyPriceCurrency, fxUsdInr);
       }
 
-      // New holding: insert with the input as the seed quantity/price, then
-      // immediately insert the corresponding transaction. The cached values
-      // already match recomputeHolding for a single buy.
       const { data: hData, error: hErr } = await sb
         .from("holdings")
         .insert(
@@ -446,8 +437,6 @@ export function useHoldings() {
   };
 }
 
-// ---------- incomes ----------
-
 function rowToIncome(r: IncomeRow): Income {
   return {
     id: r.id,
@@ -569,8 +558,6 @@ export function useIncomes() {
     configured: supabaseConfigured()
   };
 }
-
-// ---------- display currency (single source of truth via context) ----------
 
 type DisplayCcyCtx = {
   ccy: Currency;

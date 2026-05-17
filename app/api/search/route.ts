@@ -30,8 +30,8 @@ const ALLOWED_TYPES = new Set([
   "Preferred Stock"
 ]);
 
-const POPULATED_TTL = 5 * 60_000; // good results: cache 5 min
-const EMPTY_TTL = 30_000;         // empty results: cache 30s so transient failures don't get stuck
+const POPULATED_TTL = 5 * 60_000;
+const EMPTY_TTL = 30_000;
 
 async function tdUsSearchRaw(q: string): Promise<SearchResult[]> {
   if (!KEY) return [];
@@ -75,7 +75,7 @@ async function tdUsSearchRaw(q: string): Promise<SearchResult[]> {
 }
 
 async function nseInSearchRaw(q: string): Promise<SearchResult[]> {
-  const items = await nseSearch(q); // throws on cookie/network failure
+  const items = await nseSearch(q);
   return items.map(it => ({
     type: "in" as const,
     symbol: `${it.symbol}:NSE`,
@@ -97,7 +97,6 @@ async function combined(q: string): Promise<SearchResult[]> {
     }).catch(() => [] as SearchResult[])
   ]);
 
-  // Interleave: each provider's top hit stays at the top.
   const merged: SearchResult[] = [];
   const max = Math.max(us.length, ind.length);
   for (let i = 0; i < max && merged.length < 12; i++) {

@@ -151,7 +151,6 @@ export function EditHoldingSheet({
   );
 }
 
-// Re-export DeleteConfirm so other files that imported it from here keep working.
 export function DeleteConfirm({
   armed,
   onArm,

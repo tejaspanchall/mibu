@@ -73,9 +73,6 @@ export default function InvestmentsPage() {
 
   const { startValue } = usePortfolioStartValue(holdings, displayCcy, usdInr, range);
 
-  // For the selected range, P/L is current value minus the start-of-period
-  // value. For "all" (or when start data is unavailable) we fall back to the
-  // cost-basis comparison.
   const periodPnl = useMemo(() => {
     if (range === "all" || startValue == null) {
       return { pnl: totals.pnl, pct: totals.pct, baseline: "cost" as const };
@@ -85,7 +82,6 @@ export default function InvestmentsPage() {
     return { pnl, pct, baseline: "period" as const };
   }, [range, startValue, totals]);
 
-  // Report portfolio tone for the nav dot — follows the active range.
   const tone: "positive" | "negative" | "neutral" =
     holdings.length === 0 ? "neutral" : periodPnl.pnl >= 0 ? "positive" : "negative";
   useReportPortfolioTone(tone);

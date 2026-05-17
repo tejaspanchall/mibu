@@ -52,7 +52,6 @@ export function convert(
   return value / fxUsdToInr;
 }
 
-// Parse a YYYY-MM-DD string as a local-calendar date (no UTC drift).
 function localDateFromIso(iso: string): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (m) {

@@ -28,7 +28,6 @@ export default function IncomePage() {
   const openAdd = useCallback(() => setAddOpen(true), []);
   useRegisterAdd(openAdd);
 
-  // Per-month totals across all incomes for stat lookups.
   const totalsByKey = useMemo(() => {
     const map = new Map<string, { total: number; any: boolean }>();
     for (const inc of incomes) {

@@ -137,7 +137,6 @@ export async function GET(req: Request) {
         });
         Object.assign(series, got);
       } catch {
-        // Swallow — return empty series for the failed exchange.
       }
     })
   );

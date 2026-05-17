@@ -60,9 +60,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   color: #ffffff;
 }
 
-/* While a sheet is open, fully hide the sticky chrome so its bg-paper/70 +
-   backdrop-blur don't paint through the sheet's translucent overlay. We use
-   visibility:hidden (not display:none) to preserve layout and avoid jumps. */
 body.sheet-open [data-app-chrome],
 body.sheet-open [data-app-chrome] * {
   visibility: hidden !important;

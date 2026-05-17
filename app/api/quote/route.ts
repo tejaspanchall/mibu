@@ -34,8 +34,6 @@ function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-// --- Twelve Data: US ---
-
 async function tdBatch(exchange: string, tickers: string[]): Promise<Quote[]> {
   if (!KEY) throw new Error("TWELVE_DATA_API_KEY not set");
   const params = new URLSearchParams({
@@ -76,9 +74,6 @@ async function tdBatch(exchange: string, tickers: string[]): Promise<Quote[]> {
   return out;
 }
 
-// --- NSE: Indian (NSE only) ---
-// Sequential to share the cookie session and stay under bot-protection thresholds.
-
 async function nseBatch(tickers: string[]): Promise<Quote[]> {
   const out: Quote[] = [];
   for (let i = 0; i < tickers.length; i++) {
@@ -91,8 +86,6 @@ async function nseBatch(tickers: string[]): Promise<Quote[]> {
   }
   return out;
 }
-
-// --- Router ---
 
 async function fetchByExchange(exchange: string, tickers: string[]): Promise<Quote[]> {
   if (isNseExchange(exchange)) {

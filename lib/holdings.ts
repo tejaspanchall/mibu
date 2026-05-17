@@ -3,10 +3,6 @@ import { convert } from "./format";
 
 export type HoldingTotals = { quantity: number; buyPrice: number };
 
-// Compute a holding's cached quantity and weighted-average buy price from
-// its transactions. Sells reduce the position but do not change avg cost.
-// When transactions are in a different currency than canonicalCcy, prefer the
-// FX rate captured at tx time (`tx.fxUsdInr`); fall back to the current rate.
 export function recomputeHolding(
   txs: Transaction[],
   canonicalCcy: Currency,

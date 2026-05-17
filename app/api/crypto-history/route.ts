@@ -94,7 +94,6 @@ export async function GET(req: Request) {
         });
         series[id] = pts;
       } catch {
-        // Skip failed coins
       }
     })
   );

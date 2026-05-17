@@ -24,11 +24,6 @@ export function useRegisterAdd(handler: () => void) {
   }, [ctx, handler]);
 }
 
-function pageTitle(pathname: string | null) {
-  if (pathname?.startsWith("/income")) return "income";
-  return "investments";
-}
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [handler, setHandlerState] = useState<(() => void) | null>(null);
   const setHandler = useCallback((fn: (() => void) | null) => setHandlerState(() => fn), []);
@@ -41,7 +36,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   const pathname = usePathname();
-  const title = pageTitle(pathname);
   const isInv = pathname?.startsWith("/investments");
   const isInc = pathname?.startsWith("/income");
   const [ccy, setCcy] = useDisplayCurrency();
@@ -52,7 +46,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AddContext.Provider value={ctx}>
       <div className="min-h-screen text-ink">
-        {/* Desktop top nav */}
         <header
           data-app-chrome
           className="hidden lg:block sticky top-0 z-30 bg-paper/70 backdrop-blur-xl border-b border-line/70"
@@ -87,7 +80,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {/* Mobile top header */}
         <header
           data-app-chrome
           className="lg:hidden sticky top-0 z-30 bg-paper/70 backdrop-blur-xl"
@@ -95,7 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <div className="inline-flex items-center gap-2">
               <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${dotClass}`} aria-hidden />
-              <h1 className="text-[17px] font-semibold lowercase tracking-tight">{title}</h1>
+              <h1 className="text-[17px] font-semibold lowercase tracking-tight">mibu</h1>
             </div>
             <CurrencyToggle value={ccy} onChange={setCcy} />
           </div>
@@ -103,12 +95,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <SetupBanner />
 
-        {/* Content */}
         <main className="lg:max-w-5xl lg:mx-auto lg:px-4 lg:pt-8 pb-32 lg:pb-20 px-5">
           <div>{children}</div>
         </main>
-
-        {/* Mobile bottom nav */}
         <nav
           data-app-chrome
           className="lg:hidden fixed bottom-0 left-0 right-0 z-20 pt-2 pb-[max(env(safe-area-inset-bottom),0.75rem)] bg-paper/85 backdrop-blur-xl border-t border-line/70"
@@ -196,18 +185,12 @@ function BottomTab({
     <Link
       href={href}
       aria-label={label}
-      className={`relative flex flex-col items-center gap-1 px-4 pt-1.5 pb-2 rounded-xl transition ${
+      className={`flex flex-col items-center gap-1 px-4 pt-1.5 pb-2 rounded-xl transition ${
         active ? "text-ink" : "text-muted active:text-ink"
       }`}
     >
       {children}
       <span className="text-[11px] lowercase tracking-tight">{label}</span>
-      <span
-        className={`absolute -bottom-0.5 w-1 h-1 rounded-full bg-ink transition-all duration-300 ${
-          active ? "opacity-100 scale-100" : "opacity-0 scale-50"
-        }`}
-        aria-hidden
-      />
     </Link>
   );
 }

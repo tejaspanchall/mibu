@@ -116,7 +116,6 @@ export function usePrices(holdings: Holding[]) {
         setQuotes(map);
         setUpdatedAt(Date.now());
       } catch {
-        // keep stale quotes
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -128,7 +127,6 @@ export function usePrices(holdings: Holding[]) {
       cancelled = true;
       clearInterval(id);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig]);
 
   return { quotes, loading, updatedAt };
@@ -137,10 +135,6 @@ export function usePrices(holdings: Holding[]) {
 export type ChartRange = "1d" | "1w" | "1m" | "3m" | "6m" | "1y" | "3y" | "all";
 type RawPt = { t: number; c: number };
 
-// Returns the portfolio's total value at the START of the given range, in
-// `displayCcy`. Used to compute period P/L: pnl = currentValue - startValue.
-// Returns `null` while loading, on error, or when range is "all" (caller falls
-// back to cost basis in that case).
 export function usePortfolioStartValue(
   holdings: Holding[],
   displayCcy: Currency,
