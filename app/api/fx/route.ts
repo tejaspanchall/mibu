@@ -4,23 +4,63 @@ import { cached } from "@/lib/server-cache";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function loadFx(): Promise<{ usdInr: number; date?: string }> {
-  try {
-    const r = await fetch("https://api.frankfurter.app/latest?from=USD&to=INR", {
-      cache: "no-store",
-      headers: { Accept: "application/json" }
-    });
-    if (r.ok) {
+type Source = { name: string; load: () => Promise<number> };
+
+const SOURCES: Source[] = [
+  {
+    name: "frankfurter",
+    load: async () => {
+      const r = await fetch("https://api.frankfurter.app/latest?from=USD&to=INR", {
+        cache: "no-store",
+        headers: { Accept: "application/json" }
+      });
+      if (!r.ok) throw new Error(`frankfurter ${r.status}`);
       const j: any = await r.json();
       const rate = j?.rates?.INR;
-      if (typeof rate === "number") return { usdInr: rate, date: j.date };
+      if (typeof rate !== "number" || !isFinite(rate) || rate <= 0) throw new Error("bad rate");
+      return rate;
     }
-  } catch {}
-  const r2 = await fetch("https://open.er-api.com/v6/latest/USD", { cache: "no-store" });
-  const j2: any = await r2.json();
-  const rate2 = j2?.rates?.INR;
-  if (typeof rate2 !== "number") throw new Error("fx unavailable");
-  return { usdInr: rate2 };
+  },
+  {
+    name: "open-er-api",
+    load: async () => {
+      const r = await fetch("https://open.er-api.com/v6/latest/USD", {
+        cache: "no-store",
+        headers: { Accept: "application/json" }
+      });
+      if (!r.ok) throw new Error(`open-er-api ${r.status}`);
+      const j: any = await r.json();
+      const rate = j?.rates?.INR;
+      if (typeof rate !== "number" || !isFinite(rate) || rate <= 0) throw new Error("bad rate");
+      return rate;
+    }
+  },
+  {
+    name: "currency-api",
+    load: async () => {
+      const url =
+        "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json";
+      const r = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
+      if (!r.ok) throw new Error(`currency-api ${r.status}`);
+      const j: any = await r.json();
+      const rate = j?.usd?.inr;
+      if (typeof rate !== "number" || !isFinite(rate) || rate <= 0) throw new Error("bad rate");
+      return rate;
+    }
+  }
+];
+
+async function loadFx(): Promise<{ usdInr: number; source: string }> {
+  const errors: string[] = [];
+  for (const src of SOURCES) {
+    try {
+      const rate = await src.load();
+      return { usdInr: rate, source: src.name };
+    } catch (e: any) {
+      errors.push(`${src.name}: ${e?.message || "fail"}`);
+    }
+  }
+  throw new Error(errors.join(" | "));
 }
 
 export async function GET() {
@@ -28,6 +68,9 @@ export async function GET() {
     const fx = await cached("fx", "usd-inr", 5 * 60_000, loadFx, { staleOnError: true });
     return NextResponse.json({ ...fx, base: "USD" });
   } catch (e: any) {
-    return NextResponse.json({ usdInr: 83, base: "USD", error: e?.message || "fx failed" });
+    return NextResponse.json(
+      { usdInr: null, base: "USD", error: e?.message || "fx failed" },
+      { status: 503 }
+    );
   }
 }

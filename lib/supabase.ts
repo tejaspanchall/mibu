@@ -32,6 +32,7 @@ export type HoldingRow = {
   name: string;
   logo: string | null;
   currency: "USD" | "INR";
+  buy_price_currency: "USD" | "INR";
   quantity: number;
   buy_price: number;
   created_at: string;
@@ -43,6 +44,18 @@ export type IncomeRow = {
   currency: "USD" | "INR";
   emoji: string;
   source: string;
+  date: string;
+  created_at: string;
+};
+
+export type TransactionRow = {
+  id: string;
+  holding_id: string;
+  kind: "buy" | "sell";
+  quantity: number;
+  price: number;
+  currency: "USD" | "INR";
+  fx_usd_inr: number | null;
   date: string;
   created_at: string;
 };

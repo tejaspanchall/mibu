@@ -1,26 +1,64 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import type { Holding, Quote } from "./types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Currency, Holding, Quote } from "./types";
+import { convert } from "./format";
 
 const PRICE_REFRESH_MS = 60_000;
 const FX_REFRESH_MS = 5 * 60_000;
+const FX_CACHE_KEY = "mibu:fx:v1";
+
+type FxCache = { usdInr: number; fetchedAt: number };
+
+function readCachedFx(): FxCache | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(FX_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.usdInr === "number" && parsed.usdInr > 0) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedFx(usdInr: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      FX_CACHE_KEY,
+      JSON.stringify({ usdInr, fetchedAt: Date.now() })
+    );
+  } catch {}
+}
 
 export function useFx() {
-  const [usdInr, setUsdInr] = useState<number>(83);
-  const [loading, setLoading] = useState(true);
+  const [usdInr, setUsdInr] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const cached = readCachedFx();
+    if (cached) setUsdInr(cached.usdInr);
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
         const r = await fetch("/api/fx", { cache: "no-store" });
-        if (!r.ok) throw new Error("fx");
         const j = await r.json();
-        if (!cancelled && typeof j.usdInr === "number") setUsdInr(j.usdInr);
-      } catch {
-        // keep last known
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        if (typeof j?.usdInr === "number" && j.usdInr > 0) {
+          setUsdInr(j.usdInr);
+          setError(null);
+          writeCachedFx(j.usdInr);
+        } else {
+          setError(j?.error || "fx unavailable");
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || "fx unavailable");
       }
     };
     load();
@@ -31,7 +69,7 @@ export function useFx() {
     };
   }, []);
 
-  return { usdInr, loading };
+  return { usdInr, error, hydrated };
 }
 
 export function usePrices(holdings: Holding[]) {
@@ -96,6 +134,101 @@ export function usePrices(holdings: Holding[]) {
   return { quotes, loading, updatedAt };
 }
 
+export type ChartRange = "1d" | "1w" | "1m" | "3m" | "6m" | "1y" | "3y" | "all";
+type RawPt = { t: number; c: number };
+
+// Returns the portfolio's total value at the START of the given range, in
+// `displayCcy`. Used to compute period P/L: pnl = currentValue - startValue.
+// Returns `null` while loading, on error, or when range is "all" (caller falls
+// back to cost basis in that case).
+export function usePortfolioStartValue(
+  holdings: Holding[],
+  displayCcy: Currency,
+  fxUsdInr: number | null,
+  range: ChartRange
+) {
+  const [startValue, setStartValue] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const sig = useMemo(
+    () =>
+      holdings
+        .map(h => `${h.type}:${h.symbol}:${h.quantity}:${h.currency}`)
+        .sort()
+        .join("|"),
+    [holdings]
+  );
+
+  const fxKey = fxUsdInr == null ? "none" : Math.round(fxUsdInr * 100) / 100;
+
+  useEffect(() => {
+    if (range === "all" || holdings.length === 0) {
+      setStartValue(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    const stocks = holdings.filter(h => h.type !== "crypto");
+    const cryptos = holdings.filter(h => h.type === "crypto");
+
+    const stockUrl = stocks.length
+      ? `/api/stock-history?symbols=${encodeURIComponent(
+          stocks.map(h => h.symbol).join(",")
+        )}&range=${range}`
+      : null;
+    const cryptoUrl = cryptos.length
+      ? `/api/crypto-history?ids=${encodeURIComponent(
+          cryptos.map(h => h.symbol).join(",")
+        )}&range=${range}`
+      : null;
+
+    Promise.all([
+      stockUrl
+        ? fetch(stockUrl, { cache: "no-store" }).then(r => r.json())
+        : Promise.resolve({ series: {} }),
+      cryptoUrl
+        ? fetch(cryptoUrl, { cache: "no-store" }).then(r => r.json())
+        : Promise.resolve({ series: {} })
+    ])
+      .then(([stockRes, cryptoRes]) => {
+        if (cancelled) return;
+        const seriesBySymbol: Record<string, RawPt[]> = {
+          ...(stockRes?.series || {}),
+          ...(cryptoRes?.series || {})
+        };
+
+        let total = 0;
+        let anyContributed = false;
+        for (const h of holdings) {
+          const pts = seriesBySymbol[h.symbol];
+          if (!pts || pts.length === 0) continue;
+          const startPrice = pts[0].c;
+          const nativeValue = startPrice * h.quantity;
+          const v = convert(nativeValue, h.currency, displayCcy, fxUsdInr);
+          if (v == null) continue;
+          total += v;
+          anyContributed = true;
+        }
+        setStartValue(anyContributed ? total : null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStartValue(null);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sig, displayCcy, fxKey, range, holdings]);
+
+  return { startValue, loading };
+}
+
 export function useDebounced<T>(value: T, delay = 300) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -103,4 +236,23 @@ export function useDebounced<T>(value: T, delay = 300) {
     return () => clearTimeout(id);
   }, [value, delay]);
   return v;
+}
+
+export function useTwelveDataConfigured() {
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/health", { cache: "no-store" })
+      .then(r => r.json())
+      .then(j => {
+        if (!cancelled) setConfigured(!!j?.twelveData);
+      })
+      .catch(() => {
+        if (!cancelled) setConfigured(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return configured;
 }

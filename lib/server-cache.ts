@@ -16,7 +16,7 @@ export async function cached<T>(
   key: string,
   ttlMs: number,
   loader: () => Promise<T>,
-  opts?: { staleOnError?: boolean }
+  opts?: { staleOnError?: boolean; emptyTtlMs?: number }
 ): Promise<T> {
   const store = getStore<T>(ns);
   const hit = store.get(key);
@@ -24,10 +24,30 @@ export async function cached<T>(
   if (hit && hit.expiresAt > now) return hit.value;
   try {
     const value = await loader();
-    store.set(key, { value, expiresAt: now + ttlMs });
+    const isEmpty = Array.isArray(value) && value.length === 0;
+    const effectiveTtl = isEmpty && opts?.emptyTtlMs != null ? opts.emptyTtlMs : ttlMs;
+    store.set(key, { value, expiresAt: now + effectiveTtl });
     return value;
   } catch (err) {
     if (opts?.staleOnError && hit) return hit.value;
     throw err;
   }
+}
+
+export function readFresh<T>(ns: string, key: string): T | undefined {
+  const store = getStore<T>(ns);
+  const hit = store.get(key);
+  if (!hit) return undefined;
+  if (hit.expiresAt > Date.now()) return hit.value;
+  return undefined;
+}
+
+export function readStale<T>(ns: string, key: string): T | undefined {
+  const store = getStore<T>(ns);
+  return store.get(key)?.value;
+}
+
+export function write<T>(ns: string, key: string, value: T, ttlMs: number): void {
+  const store = getStore<T>(ns);
+  store.set(key, { value, expiresAt: Date.now() + ttlMs });
 }

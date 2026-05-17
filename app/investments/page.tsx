@@ -1,28 +1,49 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
 import { useHoldings, useDisplayCurrency } from "@/lib/storage";
-import { useFx, usePrices } from "@/lib/hooks";
+import { useFx, usePrices, usePortfolioStartValue, type ChartRange } from "@/lib/hooks";
 import { convert, formatMoney, formatPercent } from "@/lib/format";
-import { HoldingRow } from "@/components/HoldingRow";
+import { HoldingRow, HoldingRowSkeleton } from "@/components/HoldingRow";
 import { AddHoldingSheet } from "@/components/AddHoldingSheet";
-import { ConfirmDelete } from "@/components/ConfirmRow";
+import { EditHoldingSheet } from "@/components/EditHoldingSheet";
 import { useRegisterAdd } from "@/components/AppShell";
+import { ListCard } from "@/components/ui/Cards";
+import { PortfolioHero } from "@/components/PortfolioHero";
+import { useReportPortfolioTone } from "@/lib/portfolioTone";
 import type { AssetType } from "@/lib/types";
 
 type Filter = "all" | "crypto" | "us" | "in";
 
 export default function InvestmentsPage() {
-  const { holdings, add, remove, hydrated, error } = useHoldings();
+  const {
+    holdings,
+    transactionsByHolding,
+    addHoldingOrTx,
+    addTransaction,
+    updateTransaction,
+    removeTransaction,
+    setHoldingCurrency,
+    remove,
+    hydrated,
+    error
+  } = useHoldings();
   const [displayCcy] = useDisplayCurrency();
   const { usdInr } = useFx();
-  const { quotes, updatedAt } = usePrices(holdings);
+  const { quotes } = usePrices(holdings);
 
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [range, setRange] = useState<ChartRange>("1d");
 
-  const openSheet = useCallback(() => setSheetOpen(true), []);
-  useRegisterAdd(openSheet);
+  const openAdd = useCallback(() => setAddOpen(true), []);
+  useRegisterAdd(openAdd);
+
+  const present = useMemo(() => {
+    const set = new Set<AssetType>();
+    holdings.forEach(h => set.add(h.type));
+    return set;
+  }, [holdings]);
 
   const filtered = useMemo(
     () => (filter === "all" ? holdings : holdings.filter(h => h.type === filter)),
@@ -32,94 +53,200 @@ export default function InvestmentsPage() {
   const totals = useMemo(() => {
     let value = 0;
     let cost = 0;
+    let unconverted = false;
     for (const h of holdings) {
       const q = quotes[h.symbol];
       const px = q?.price ?? h.buyPrice;
-      value += convert(px * h.quantity, h.currency, displayCcy, usdInr);
-      cost += convert(h.buyPrice * h.quantity, h.currency, displayCcy, usdInr);
+      const v = convert(px * h.quantity, h.currency, displayCcy, usdInr);
+      const c = convert(h.buyPrice * h.quantity, h.buyPriceCurrency, displayCcy, usdInr);
+      if (v == null || c == null) {
+        unconverted = true;
+        continue;
+      }
+      value += v;
+      cost += c;
     }
     const pnl = value - cost;
     const pct = cost > 0 ? (pnl / cost) * 100 : 0;
-    return { value, cost, pnl, pct };
+    return { value, cost, pnl, pct, unconverted };
   }, [holdings, quotes, displayCcy, usdInr]);
 
-  const confirming = useMemo(() => holdings.find(h => h.id === confirmId) || null, [confirmId, holdings]);
+  const { startValue } = usePortfolioStartValue(holdings, displayCcy, usdInr, range);
+
+  // For the selected range, P/L is current value minus the start-of-period
+  // value. For "all" (or when start data is unavailable) we fall back to the
+  // cost-basis comparison.
+  const periodPnl = useMemo(() => {
+    if (range === "all" || startValue == null) {
+      return { pnl: totals.pnl, pct: totals.pct, baseline: "cost" as const };
+    }
+    const pnl = totals.value - startValue;
+    const pct = startValue > 0 ? (pnl / startValue) * 100 : 0;
+    return { pnl, pct, baseline: "period" as const };
+  }, [range, startValue, totals]);
+
+  // Report portfolio tone for the nav dot — follows the active range.
+  const tone: "positive" | "negative" | "neutral" =
+    holdings.length === 0 ? "neutral" : periodPnl.pnl >= 0 ? "positive" : "negative";
+  useReportPortfolioTone(tone);
+
+  const editing = useMemo(
+    () => holdings.find(h => h.id === editId) || null,
+    [editId, holdings]
+  );
+
+  const filters: Filter[] = useMemo(() => {
+    const list: Filter[] = ["all"];
+    if (present.has("crypto")) list.push("crypto");
+    if (present.has("us")) list.push("us");
+    if (present.has("in")) list.push("in");
+    return list;
+  }, [present]);
+
+  const heroBlocked =
+    usdInr == null &&
+    holdings.some(h => h.currency !== displayCcy || h.buyPriceCurrency !== displayCcy);
+
+  const heroValue = heroBlocked ? "—" : formatMoney(totals.value, displayCcy);
+
+  const heroSub =
+    holdings.length === 0 ? null : (
+      <span className={periodPnl.pnl >= 0 ? "text-positive" : "text-negative"}>
+        {periodPnl.pnl >= 0 ? "↑ +" : "↓ "}
+        {formatMoney(periodPnl.pnl, displayCcy)}{" "}
+        <span className="opacity-70">({formatPercent(periodPnl.pct)})</span>
+        {periodPnl.baseline === "period" && (
+          <span className="opacity-70"> · past {range}</span>
+        )}
+      </span>
+    );
+
+  const costLine = (
+    <>
+      cost <span className="opacity-70">·</span>{" "}
+      {formatMoney(totals.cost, displayCcy)}
+    </>
+  );
 
   return (
-    <div className="px-5 lg:px-0 pt-2 lg:pt-0">
-      <div className="text-center mb-2 lg:mb-4">
-        <div className="text-[44px] lg:text-[64px] leading-none font-semibold tracking-tight">
-          {formatMoney(totals.value, displayCcy, { compact: true })}
-        </div>
-        {holdings.length > 0 && (
-          <div
-            className={`mt-2 text-sm ${
-              totals.pnl >= 0 ? "text-positive" : "text-negative"
-            }`}
-          >
-            {totals.pnl >= 0 ? "+" : ""}
-            {formatMoney(totals.pnl, displayCcy)}{" "}
-            <span className="opacity-70">({formatPercent(totals.pct)})</span>
-          </div>
-        )}
-        {holdings.length > 0 && (
-          <div className="mt-1 text-[11px] text-muted">
-            1 USD = ₹{usdInr.toFixed(2)}
-            {updatedAt && ` · updated ${timeAgo(updatedAt)}`}
-          </div>
-        )}
-      </div>
-
-      <div className="flex gap-2 my-5 overflow-x-auto no-scrollbar">
-        {(["all", "crypto", "us", "in"] as Filter[]).map(f => (
-          <FilterPill key={f} active={filter === f} onClick={() => setFilter(f)} label={labelFor(f)} />
-        ))}
-      </div>
+    <div className="space-y-3">
+      <PortfolioHero
+        value={heroValue}
+        pnlSub={heroSub}
+        range={range}
+        onRangeChange={setRange}
+        extra={costLine}
+      />
 
       {error && (
-        <div className="text-xs text-negative bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-3">
+        <div className="text-xs text-negative bg-negative/[0.06] border border-negative/15 rounded-2xl px-3.5 py-2.5 leading-relaxed">
           {error}
         </div>
       )}
 
-      {hydrated && holdings.length === 0 && !error && <Empty title="no holdings yet" hint="tap + to add your first one" />}
+      {!hydrated && (
+        <ListCard>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i}>
+              <HoldingRowSkeleton />
+              {i < 3 && <Divider />}
+            </div>
+          ))}
+        </ListCard>
+      )}
 
-      <div className="space-y-0.5">
-        {filtered.map(h => (
-          <HoldingRow
-            key={h.id}
-            holding={h}
-            quote={quotes[h.symbol]}
-            displayCurrency={displayCcy}
-            fxUsdInr={usdInr}
-            onClick={() => setConfirmId(h.id)}
-          />
-        ))}
-      </div>
+      {hydrated && holdings.length === 0 && !error && (
+        <Empty
+          icon="📈"
+          title="no holdings yet"
+          hint="tap the + button to add your first one"
+        />
+      )}
+
+      {hydrated && holdings.length > 0 && (
+        <ListCard
+          header={
+            <div className="flex items-center gap-3 px-4 py-3">
+              {filters.length > 1 ? (
+                <div className="flex-1 min-w-0 flex gap-1.5 overflow-x-auto no-scrollbar">
+                  {filters.map(f => (
+                    <FilterPill
+                      key={f}
+                      active={filter === f}
+                      onClick={() => setFilter(f)}
+                      label={labelFor(f)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1" />
+              )}
+              <div className="text-xs text-muted tnum shrink-0">{filtered.length}</div>
+            </div>
+          }
+        >
+          {filtered.map((h, i) => (
+            <div key={h.id}>
+              <HoldingRow
+                holding={h}
+                quote={quotes[h.symbol]}
+                displayCurrency={displayCcy}
+                fxUsdInr={usdInr}
+                onClick={() => setEditId(h.id)}
+              />
+              {i < filtered.length - 1 && <Divider />}
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-4 py-6 text-center text-xs text-muted">
+              no {labelFor(filter)} in your portfolio
+            </div>
+          )}
+        </ListCard>
+      )}
 
       <AddHoldingSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        onAdd={add}
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdd={input => addHoldingOrTx(input, usdInr)}
       />
 
-      <ConfirmDelete
-        open={!!confirming}
-        onClose={() => setConfirmId(null)}
-        onConfirm={() => confirming && remove(confirming.id)}
-        title={`delete ${confirming?.ticker || ""}?`}
-        description="this only removes it from your tracker."
+      <EditHoldingSheet
+        open={!!editing}
+        holding={editing}
+        transactions={editing ? transactionsByHolding[editing.id] ?? [] : []}
+        fxUsdInr={usdInr}
+        onClose={() => setEditId(null)}
+        onAddTransaction={addTransaction}
+        onUpdateTransaction={updateTransaction}
+        onDeleteTransaction={removeTransaction}
+        onSetCurrency={setHoldingCurrency}
+        onDelete={remove}
       />
     </div>
   );
 }
 
-function FilterPill({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+function Divider() {
+  return <div className="h-px bg-line/70 mx-4" aria-hidden />;
+}
+
+function FilterPill({
+  active,
+  onClick,
+  label
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
   return (
     <button
       onClick={onClick}
-      className={`text-xs px-3 py-1.5 rounded-full whitespace-nowrap transition ${
-        active ? "bg-ink text-paper" : "bg-chip text-muted"
+      className={`text-[11px] px-3 py-1 rounded-full whitespace-nowrap font-medium transition duration-200 ${
+        active
+          ? "bg-ink text-paper shadow-soft"
+          : "bg-chip text-muted hover:text-ink"
       }`}
     >
       {label}
@@ -134,20 +261,23 @@ function labelFor(f: AssetType | "all") {
   return "in stocks";
 }
 
-function Empty({ title, hint }: { title: string; hint: string }) {
+function Empty({
+  icon,
+  title,
+  hint
+}: {
+  icon: string;
+  title: string;
+  hint: string;
+}) {
   return (
     <div className="mt-12 text-center">
-      <div className="text-sm font-medium">{title}</div>
+      <div className="w-14 h-14 mx-auto rounded-2xl bg-chip grid place-items-center text-2xl">
+        {icon}
+      </div>
+      <div className="mt-4 text-sm font-medium tracking-tight">{title}</div>
       <div className="text-xs text-muted mt-1">{hint}</div>
     </div>
   );
 }
 
-function timeAgo(ts: number) {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  return `${Math.floor(m / 60)}h ago`;
-}

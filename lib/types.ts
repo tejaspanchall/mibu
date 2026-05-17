@@ -10,6 +10,7 @@ export type Holding = {
   name: string;
   logo?: string;
   currency: Currency;
+  buyPriceCurrency: Currency;
   quantity: number;
   buyPrice: number;
   createdAt: string;
@@ -38,4 +39,18 @@ export type SearchResult = {
   name: string;
   logo?: string;
   currency: Currency;
+};
+
+export type TxKind = "buy" | "sell";
+
+export type Transaction = {
+  id: string;
+  holdingId: string;
+  kind: TxKind;
+  quantity: number;
+  price: number;
+  currency: Currency;
+  fxUsdInr: number | null;
+  date: string;
+  createdAt: string;
 };

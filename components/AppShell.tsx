@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useDisplayCurrency } from "@/lib/storage";
 import { supabaseConfigured } from "@/lib/supabase";
+import { useTwelveDataConfigured } from "@/lib/hooks";
+import { usePortfolioTone } from "@/lib/portfolioTone";
 import { CurrencyToggle } from "./CurrencyToggle";
 
 type AddCtx = {
@@ -43,17 +45,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isInv = pathname?.startsWith("/investments");
   const isInc = pathname?.startsWith("/income");
   const [ccy, setCcy] = useDisplayCurrency();
+  const tone = usePortfolioTone();
+  const dotClass =
+    tone === "positive" ? "bg-positive" : tone === "negative" ? "bg-negative" : "bg-ink";
 
   return (
     <AddContext.Provider value={ctx}>
-      <div className="min-h-screen bg-paper text-ink">
+      <div className="min-h-screen text-ink">
         {/* Desktop top nav */}
-        <header className="hidden lg:block sticky top-0 z-30 bg-paper/85 backdrop-blur border-b border-line">
-          <div className="max-w-3xl mx-auto px-8 h-16 flex items-center justify-between gap-6">
-            <Link href="/investments" className="font-semibold lowercase text-lg tracking-tight">
+        <header
+          data-app-chrome
+          className="hidden lg:block sticky top-0 z-30 bg-paper/70 backdrop-blur-xl border-b border-line/70"
+        >
+          <div className="max-w-5xl mx-auto px-4 h-[68px] flex items-center justify-between gap-6">
+            <Link
+              href="/investments"
+              className="group inline-flex items-center gap-2 font-semibold lowercase text-[17px] tracking-tight rounded-md"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${dotClass}`} aria-hidden />
               mibu
             </Link>
-            <nav className="flex items-center bg-chip rounded-full p-1">
+            <nav className="flex items-center bg-chip/80 rounded-full p-1">
               <DesktopTab href="/investments" active={!!isInv}>
                 investments
               </DesktopTab>
@@ -63,10 +75,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
             <div className="flex items-center gap-3">
               <CurrencyToggle value={ccy} onChange={setCcy} />
+              <span className="w-px h-5 bg-line" aria-hidden />
               <button
                 onClick={trigger}
                 disabled={!ctx.hasHandler}
-                className="inline-flex items-center gap-1.5 bg-ink text-paper rounded-full pl-3 pr-4 py-2 text-sm font-medium disabled:opacity-30 active:scale-[0.98] transition"
+                className="inline-flex items-center gap-1.5 bg-ink text-paper rounded-full pl-3 pr-4 py-2 text-sm font-medium shadow-soft hover:shadow-pop disabled:opacity-30 disabled:shadow-none active:scale-[0.97] transition duration-200"
               >
                 <PlusIcon size={14} /> add
               </button>
@@ -75,51 +88,48 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Mobile top header */}
-        <header className="lg:hidden flex items-center justify-between px-5 pt-6 pb-2">
-          <h1 className="text-lg font-semibold lowercase">{title}</h1>
-          <CurrencyToggle value={ccy} onChange={setCcy} />
+        <header
+          data-app-chrome
+          className="lg:hidden sticky top-0 z-30 bg-paper/70 backdrop-blur-xl"
+        >
+          <div className="flex items-center justify-between px-5 pt-5 pb-3">
+            <div className="inline-flex items-center gap-2">
+              <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${dotClass}`} aria-hidden />
+              <h1 className="text-[17px] font-semibold lowercase tracking-tight">{title}</h1>
+            </div>
+            <CurrencyToggle value={ccy} onChange={setCcy} />
+          </div>
         </header>
 
         <SetupBanner />
 
         {/* Content */}
-        <main className="lg:max-w-3xl lg:mx-auto lg:px-8 lg:pt-8 pb-28 lg:pb-16">
-          {children}
+        <main className="lg:max-w-5xl lg:mx-auto lg:px-4 lg:pt-8 pb-32 lg:pb-20 px-5">
+          <div>{children}</div>
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-20 px-6 pt-3 pb-6 bg-gradient-to-t from-paper via-paper to-paper/0">
-          <div className="flex items-center justify-between max-w-md mx-auto">
-            <Link
-              href="/investments"
-              className={`flex flex-col items-center gap-1 px-3 py-1 ${
-                isInv ? "text-ink" : "text-muted"
-              }`}
-              aria-label="investments"
-            >
+        <nav
+          data-app-chrome
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-20 pt-2 pb-[max(env(safe-area-inset-bottom),0.75rem)] bg-paper/85 backdrop-blur-xl border-t border-line/70"
+        >
+          <div className="flex items-center justify-between max-w-md mx-auto px-8">
+            <BottomTab href="/investments" active={!!isInv} label="investments">
               <IconChart active={!!isInv} />
-              <span className="text-[11px]">investments</span>
-            </Link>
+            </BottomTab>
 
             <button
               onClick={trigger}
               disabled={!ctx.hasHandler}
-              className="w-14 h-14 -mt-7 rounded-full bg-ink text-paper grid place-items-center shadow-lg active:scale-95 transition disabled:opacity-40"
+              className="w-14 h-14 -mt-7 rounded-full bg-ink text-paper grid place-items-center shadow-fab active:scale-90 transition duration-200 disabled:opacity-40 disabled:shadow-none"
               aria-label="add"
             >
               <PlusIcon size={22} />
             </button>
 
-            <Link
-              href="/income"
-              className={`flex flex-col items-center gap-1 px-3 py-1 ${
-                isInc ? "text-ink" : "text-muted"
-              }`}
-              aria-label="income"
-            >
+            <BottomTab href="/income" active={!!isInc} label="income">
               <IconWallet active={!!isInc} />
-              <span className="text-[11px]">income</span>
-            </Link>
+            </BottomTab>
           </div>
         </nav>
       </div>
@@ -128,18 +138,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 function SetupBanner() {
-  const [show, setShow] = useState(false);
+  const [supaOk, setSupaOk] = useState<boolean | null>(null);
+  const tdOk = useTwelveDataConfigured();
   useEffect(() => {
-    setShow(!supabaseConfigured());
+    setSupaOk(supabaseConfigured());
   }, []);
-  if (!show) return null;
+  if (supaOk === null || tdOk === null) return null;
+  if (supaOk && tdOk) return null;
+  const missing: string[] = [];
+  if (!supaOk) missing.push("supabase (NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY)");
+  if (!tdOk) missing.push("twelve data (TWELVE_DATA_API_KEY)");
   return (
-    <div className="mx-5 lg:max-w-3xl lg:mx-auto lg:px-8 mt-3">
+    <div className="mx-5 lg:max-w-5xl lg:mx-auto lg:px-4 mt-3">
       <div className="rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs px-4 py-3">
-        <span className="font-semibold">supabase not configured.</span> add{" "}
-        <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-        <code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to{" "}
-        <code className="font-mono">.env.local</code>, run{" "}
+        <span className="font-semibold">setup incomplete:</span> missing {missing.join(" and ")}.
+        add to <code className="font-mono">.env.local</code>, run{" "}
         <code className="font-mono">supabase/schema.sql</code>, then restart{" "}
         <code className="font-mono">npm run dev</code>.
       </div>
@@ -159,11 +172,42 @@ function DesktopTab({
   return (
     <Link
       href={href}
-      className={`px-4 py-1.5 rounded-full text-sm font-medium transition lowercase ${
-        active ? "bg-paper text-ink shadow-sm" : "text-muted hover:text-ink"
+      className={`px-4 py-1.5 rounded-full text-sm font-medium transition duration-200 lowercase ${
+        active ? "bg-paper text-ink shadow-soft" : "text-muted hover:text-ink"
       }`}
     >
       {children}
+    </Link>
+  );
+}
+
+function BottomTab({
+  href,
+  active,
+  label,
+  children
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className={`relative flex flex-col items-center gap-1 px-4 pt-1.5 pb-2 rounded-xl transition ${
+        active ? "text-ink" : "text-muted active:text-ink"
+      }`}
+    >
+      {children}
+      <span className="text-[11px] lowercase tracking-tight">{label}</span>
+      <span
+        className={`absolute -bottom-0.5 w-1 h-1 rounded-full bg-ink transition-all duration-300 ${
+          active ? "opacity-100 scale-100" : "opacity-0 scale-50"
+        }`}
+        aria-hidden
+      />
     </Link>
   );
 }
