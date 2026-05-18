@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "mibu — investments & income",
+  title: "mibu",
   description: "minimal investment and income tracker"
 };
 

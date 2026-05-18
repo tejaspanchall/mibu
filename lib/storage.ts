@@ -18,8 +18,16 @@ import {
   type TransactionRow
 } from "./supabase";
 import { recomputeHolding } from "./holdings";
+import { readCache, writeCache } from "./local-cache";
 
 const KEY_DISPLAY_CCY = "mibu:displayCcy:v1";
+const KEY_HOLDINGS = "holdings:v1";
+const KEY_INCOMES = "incomes:v1";
+
+type HoldingsSnapshot = {
+  holdings: Holding[];
+  transactionsByHolding: Record<string, Transaction[]>;
+};
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -151,6 +159,20 @@ export function useHoldings() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const cached = readCache<HoldingsSnapshot>(KEY_HOLDINGS);
+    if (cached?.holdings && cached?.transactionsByHolding) {
+      setHoldings(cached.holdings);
+      setTransactionsByHolding(cached.transactionsByHolding);
+      setHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writeCache<HoldingsSnapshot>(KEY_HOLDINGS, { holdings, transactionsByHolding });
+  }, [hydrated, holdings, transactionsByHolding]);
 
   const persistRecompute = useCallback(
     async (
@@ -455,6 +477,14 @@ export function useIncomes() {
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const cached = readCache<Income[]>(KEY_INCOMES);
+    if (Array.isArray(cached)) {
+      setIncomes(cached);
+      setHydrated(true);
+    }
+  }, []);
+
   const refresh = useCallback(async () => {
     const sb = getSupabase();
     if (!sb) {
@@ -480,6 +510,11 @@ export function useIncomes() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writeCache<Income[]>(KEY_INCOMES, incomes);
+  }, [hydrated, incomes]);
 
   const add = useCallback(
     async (i: Omit<Income, "id" | "createdAt">): Promise<Result> => {

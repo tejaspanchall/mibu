@@ -2,10 +2,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Currency, Holding, Quote } from "./types";
 import { convert } from "./format";
+import { readCache, writeCache } from "./local-cache";
 
 const PRICE_REFRESH_MS = 60_000;
 const FX_REFRESH_MS = 5 * 60_000;
+const FX_HARD_MAX_AGE_MS = 24 * 60 * 60_000;
 const FX_CACHE_KEY = "mibu:fx:v1";
+const QUOTES_KEY = "quotes:v1";
+const QUOTES_HARD_MAX_AGE_MS = 24 * 60 * 60_000;
 
 type FxCache = { usdInr: number; fetchedAt: number };
 
@@ -15,8 +19,10 @@ function readCachedFx(): FxCache | null {
     const raw = window.localStorage.getItem(FX_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (typeof parsed?.usdInr === "number" && parsed.usdInr > 0) return parsed;
-    return null;
+    if (typeof parsed?.usdInr !== "number" || parsed.usdInr <= 0) return null;
+    if (typeof parsed?.fetchedAt !== "number") return null;
+    if (Date.now() - parsed.fetchedAt > FX_HARD_MAX_AGE_MS) return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -84,10 +90,12 @@ export function usePrices(holdings: Holding[]) {
     .join("|");
 
   useEffect(() => {
-    if (!sig) {
-      setQuotes({});
-      return;
-    }
+    const cached = readCache<Record<string, Quote>>(QUOTES_KEY, QUOTES_HARD_MAX_AGE_MS);
+    if (cached) setQuotes(cached);
+  }, []);
+
+  useEffect(() => {
+    if (!sig) return;
     sigRef.current = sig;
     let cancelled = false;
 
@@ -113,7 +121,12 @@ export function usePrices(holdings: Holding[]) {
         for (const q of [...(stockRes.quotes || []), ...(cryptoRes.quotes || [])]) {
           map[q.symbol] = q;
         }
-        setQuotes(map);
+        if (Object.keys(map).length === 0) return;
+        setQuotes(prev => {
+          const next = { ...prev, ...map };
+          writeCache(QUOTES_KEY, next);
+          return next;
+        });
         setUpdatedAt(Date.now());
       } catch {
       } finally {
@@ -134,6 +147,48 @@ export function usePrices(holdings: Holding[]) {
 
 export type ChartRange = "1d" | "1w" | "1m" | "3m" | "6m" | "1y" | "3y" | "all";
 type RawPt = { t: number; c: number };
+
+function historyTtl(range: ChartRange): number {
+  switch (range) {
+    case "1d":
+    case "1w":
+      return 5 * 60_000;
+    case "1m":
+    case "3m":
+      return 30 * 60_000;
+    case "6m":
+    case "1y":
+    case "3y":
+      return 6 * 60 * 60_000;
+    case "all":
+      return 24 * 60 * 60_000;
+  }
+}
+
+function historyKey(symbol: string, range: ChartRange): string {
+  return `history:v1:${symbol}:${range}`;
+}
+
+function computeStartValue(
+  seriesBySymbol: Record<string, RawPt[]>,
+  holdings: Holding[],
+  displayCcy: Currency,
+  fxUsdInr: number | null
+): number | null {
+  let total = 0;
+  let any = false;
+  for (const h of holdings) {
+    const pts = seriesBySymbol[h.symbol];
+    if (!pts || pts.length === 0) continue;
+    const startPrice = pts[0].c;
+    const nativeValue = startPrice * h.quantity;
+    const v = convert(nativeValue, h.currency, displayCcy, fxUsdInr);
+    if (v == null) continue;
+    total += v;
+    any = true;
+  }
+  return any ? total : null;
+}
 
 export function usePortfolioStartValue(
   holdings: Holding[],
@@ -163,6 +218,28 @@ export function usePortfolioStartValue(
     }
 
     let cancelled = false;
+    const ttl = historyTtl(range);
+
+    const cachedBySymbol: Record<string, RawPt[]> = {};
+    let allCached = true;
+    for (const h of holdings) {
+      const pts = readCache<RawPt[]>(historyKey(h.symbol, range), ttl);
+      if (pts && pts.length > 0) cachedBySymbol[h.symbol] = pts;
+      else allCached = false;
+    }
+
+    const hadCache = Object.keys(cachedBySymbol).length > 0;
+    if (hadCache) {
+      setStartValue(computeStartValue(cachedBySymbol, holdings, displayCcy, fxUsdInr));
+    }
+
+    if (allCached) {
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     setLoading(true);
 
     const stocks = holdings.filter(h => h.type !== "crypto");
@@ -194,24 +271,18 @@ export function usePortfolioStartValue(
           ...(cryptoRes?.series || {})
         };
 
-        let total = 0;
-        let anyContributed = false;
-        for (const h of holdings) {
-          const pts = seriesBySymbol[h.symbol];
-          if (!pts || pts.length === 0) continue;
-          const startPrice = pts[0].c;
-          const nativeValue = startPrice * h.quantity;
-          const v = convert(nativeValue, h.currency, displayCcy, fxUsdInr);
-          if (v == null) continue;
-          total += v;
-          anyContributed = true;
+        for (const [sym, pts] of Object.entries(seriesBySymbol)) {
+          if (Array.isArray(pts) && pts.length > 0) {
+            writeCache(historyKey(sym, range), pts);
+          }
         }
-        setStartValue(anyContributed ? total : null);
+
+        setStartValue(computeStartValue(seriesBySymbol, holdings, displayCcy, fxUsdInr));
         setLoading(false);
       })
       .catch(() => {
         if (cancelled) return;
-        setStartValue(null);
+        if (!hadCache) setStartValue(null);
         setLoading(false);
       });
 

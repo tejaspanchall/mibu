@@ -6,7 +6,10 @@ import { CurrencyToggle } from "./CurrencyToggle";
 import { useDebounced } from "@/lib/hooks";
 import { useDisplayCurrency } from "@/lib/storage";
 import { todayIso } from "@/lib/format";
+import { readSearchCache, writeSearchCache } from "@/lib/local-cache";
 import type { AssetType, Currency, SearchResult } from "@/lib/types";
+
+const SEARCH_TTL_MS = 5 * 60_000;
 
 type Tab = "stock" | "crypto";
 
@@ -64,6 +67,16 @@ export function AddHoldingSheet({
       setResults([]);
       return;
     }
+
+    const q = debounced.trim().toLowerCase();
+    const bucket = tab === "stock" ? "searchStock:v1" : "searchCrypto:v1";
+    const cached = readSearchCache<SearchResult[]>(bucket, q, SEARCH_TTL_MS);
+    if (cached) {
+      setResults(cached);
+      setLoadingSearch(false);
+      return;
+    }
+
     let cancelled = false;
     setLoadingSearch(true);
     const url =
@@ -73,7 +86,10 @@ export function AddHoldingSheet({
     fetch(url)
       .then(r => r.json())
       .then(j => {
-        if (!cancelled) setResults(j.results || []);
+        if (cancelled) return;
+        const results: SearchResult[] = j.results || [];
+        setResults(results);
+        writeSearchCache(bucket, q, results);
       })
       .catch(() => {
         if (!cancelled) setResults([]);
