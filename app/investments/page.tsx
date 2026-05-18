@@ -45,10 +45,16 @@ export default function InvestmentsPage() {
     return set;
   }, [holdings]);
 
-  const filtered = useMemo(
-    () => (filter === "all" ? holdings : holdings.filter(h => h.type === filter)),
-    [holdings, filter]
-  );
+  const filtered = useMemo(() => {
+    const base = filter === "all" ? holdings : holdings.filter(h => h.type === filter);
+    const valueOf = (h: typeof holdings[number]) => {
+      const px = quotes[h.symbol]?.price;
+      if (px == null) return -1;
+      const v = convert(px * h.quantity, h.currency, displayCcy, usdInr);
+      return v ?? -1;
+    };
+    return [...base].sort((a, b) => valueOf(b) - valueOf(a));
+  }, [holdings, filter, quotes, displayCcy, usdInr]);
 
   const totals = useMemo(() => {
     let value = 0;

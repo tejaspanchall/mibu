@@ -46,6 +46,7 @@ export function AddHoldingSheet({
   const [qty, setQty] = useState("");
   const [price, setPrice] = useState("");
   const [buyCcy, setBuyCcy] = useState<Currency>(displayCcy);
+  const [date, setDate] = useState(todayIso());
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -57,6 +58,7 @@ export function AddHoldingSheet({
     setQty("");
     setPrice("");
     setBuyCcy(displayCcy);
+    setDate(todayIso());
     setErr(null);
     setSubmitting(false);
   }, [open, tab, displayCcy]);
@@ -105,8 +107,8 @@ export function AddHoldingSheet({
   const canSave = useMemo(() => {
     const q = parseFloat(qty);
     const p = parseFloat(price);
-    return !!picked && q > 0 && p > 0 && !submitting;
-  }, [picked, qty, price, submitting]);
+    return !!picked && q > 0 && p > 0 && date.length > 0 && !submitting;
+  }, [picked, qty, price, date, submitting]);
 
   const submit = async () => {
     if (!canSave || !picked) return;
@@ -141,7 +143,7 @@ export function AddHoldingSheet({
       buyPriceCurrency: buyCcy,
       quantity: parseFloat(qty),
       buyPrice: parseFloat(price),
-      date: todayIso()
+      date
     });
     if (!result.ok) {
       setErr(result.error);
@@ -276,6 +278,14 @@ export function AddHoldingSheet({
                   onChange={e => setPrice(e.target.value)}
                   placeholder="0.00"
                   className={`${INPUT_CLS} tnum`}
+                />
+              </Field>
+              <Field label="date">
+                <input
+                  type="date"
+                  value={date}
+                  onChange={e => setDate(e.target.value)}
+                  className={INPUT_CLS}
                 />
               </Field>
             </div>
