@@ -95,30 +95,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <SetupBanner />
 
-        <main className="lg:max-w-5xl lg:mx-auto lg:px-4 lg:pt-8 pb-32 lg:pb-20 px-5">
+        <main className="lg:max-w-5xl lg:mx-auto lg:px-4 pt-4 pb-32 lg:pb-20 px-5">
           <div>{children}</div>
         </main>
         <nav
           data-app-chrome
           className="lg:hidden fixed bottom-0 left-0 right-0 z-20 pt-2 pb-[max(env(safe-area-inset-bottom),0.75rem)] bg-paper/85 backdrop-blur-xl border-t border-line/70"
         >
-          <div className="flex items-center justify-between max-w-md mx-auto px-8">
-            <BottomTab href="/investments" active={!!isInv} label="investments">
-              <IconChart active={!!isInv} />
-            </BottomTab>
+          <div className="grid grid-cols-3 items-center max-w-md mx-auto px-8">
+            <div className="flex justify-center">
+              <BottomTab href="/investments" active={!!isInv} label="investments">
+                <IconChart active={!!isInv} />
+              </BottomTab>
+            </div>
 
-            <button
-              onClick={trigger}
-              disabled={!ctx.hasHandler}
-              className="w-14 h-14 -mt-7 rounded-full bg-ink text-paper grid place-items-center shadow-fab active:scale-90 transition duration-200 disabled:opacity-40 disabled:shadow-none"
-              aria-label="add"
-            >
-              <PlusIcon size={22} />
-            </button>
+            <div className="flex justify-center">
+              <button
+                onClick={trigger}
+                disabled={!ctx.hasHandler}
+                className="w-14 h-14 -mt-7 rounded-full bg-ink text-paper grid place-items-center shadow-fab active:scale-90 transition duration-200 disabled:opacity-40 disabled:shadow-none"
+                aria-label="add"
+              >
+                <PlusIcon size={22} />
+              </button>
+            </div>
 
-            <BottomTab href="/income" active={!!isInc} label="income">
-              <IconWallet active={!!isInc} />
-            </BottomTab>
+            <div className="flex justify-center">
+              <BottomTab href="/income" active={!!isInc} label="income">
+                <IconWallet active={!!isInc} />
+              </BottomTab>
+            </div>
           </div>
         </nav>
       </div>

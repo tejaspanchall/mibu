@@ -55,8 +55,11 @@ export default function InvestmentsPage() {
     let cost = 0;
     let unconverted = false;
     for (const h of holdings) {
-      const q = quotes[h.symbol];
-      const px = q?.price ?? h.buyPrice;
+      const px = quotes[h.symbol]?.price;
+      if (px == null) {
+        unconverted = true;
+        continue;
+      }
       const v = convert(px * h.quantity, h.currency, displayCcy, usdInr);
       const c = convert(h.buyPrice * h.quantity, h.buyPriceCurrency, displayCcy, usdInr);
       if (v == null || c == null) {

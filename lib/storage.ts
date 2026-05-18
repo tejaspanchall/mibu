@@ -24,13 +24,14 @@ const KEY_DISPLAY_CCY = "mibu:displayCcy:v1";
 export type Result = { ok: true } | { ok: false; error: string };
 
 function rowToHolding(r: HoldingRow): Holding {
+  const logo = r.type === "crypto" ? (r.logo ?? undefined) : undefined;
   return {
     id: r.id,
     type: r.type,
     symbol: r.symbol,
     ticker: r.ticker,
     name: r.name,
-    logo: r.logo ?? undefined,
+    logo,
     currency: r.currency,
     buyPriceCurrency: r.buy_price_currency,
     quantity: Number(r.quantity),

@@ -93,3 +93,9 @@ do $$ begin
   from public.holdings h
   where not exists (select 1 from public.transactions t where t.holding_id = h.id);
 end $$;
+
+-- Stock logos are computed at render time (logo.dev). Any logo URL persisted
+-- on a US/IN holding is stale from an older code version. Crypto logos are
+-- legitimately stored from CoinGecko search results and must be preserved.
+update public.holdings set logo = null
+where type in ('us','in') and logo is not null;
