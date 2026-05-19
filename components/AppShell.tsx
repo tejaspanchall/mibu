@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useDisplayCurrency } from "@/lib/storage";
 import { supabaseConfigured } from "@/lib/supabase";
@@ -43,6 +43,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const dotClass =
     tone === "positive" ? "bg-positive" : tone === "negative" ? "bg-negative" : "bg-ink";
 
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
+
   return (
     <AddContext.Provider value={ctx}>
       <div className="min-h-screen text-ink">
@@ -68,6 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
             <div className="flex items-center gap-3">
               <CurrencyToggle value={ccy} onChange={setCcy} />
+              <LogoutButton />
               <span className="w-px h-5 bg-line" aria-hidden />
               <button
                 onClick={trigger}
@@ -89,7 +94,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${dotClass}`} aria-hidden />
               <h1 className="text-[17px] font-semibold lowercase tracking-tight">mibu</h1>
             </div>
-            <CurrencyToggle value={ccy} onChange={setCcy} />
+            <div className="flex items-center gap-2">
+              <CurrencyToggle value={ccy} onChange={setCcy} />
+              <LogoutButton />
+            </div>
           </div>
         </header>
 
@@ -198,6 +206,42 @@ function BottomTab({
       {children}
       <span className="text-[11px] lowercase tracking-tight">{label}</span>
     </Link>
+  );
+}
+
+function LogoutButton() {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const onClick = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+    }
+    router.replace("/login");
+    router.refresh();
+  }, [busy, router]);
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      aria-label="log out"
+      title="log out"
+      className="inline-grid place-items-center w-8 h-8 rounded-full text-muted hover:text-ink hover:bg-chip active:scale-95 transition disabled:opacity-40"
+    >
+      <LogoutIcon />
+    </button>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
+      <path d="M10 17l-5-5 5-5" />
+      <path d="M5 12h11" />
+    </svg>
   );
 }
 
